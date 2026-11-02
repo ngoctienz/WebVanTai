@@ -1,11 +1,1163 @@
+@model WebVanTai.Areas.TicketInspector.ViewModels.TicketInspectorDashboardViewModel
 @{
-    ViewData["Title"] = "Ticket Inspector Dashboard";
+    ViewData["Title"] = "Soát vé xe khách";
+    var selectedTrip = Model.SelectedTrip;
 }
 
-<div class="container-fluid py-4">
-    <h2 class="mb-4 text-success">Ticket Inspector Dashboard</h2>
-    <div class="alert alert-info">
-        Chào mừng Nhân viên soát vé đến với hệ thống kiểm soát vé WebVanTai.
+@section Styles {
+    <style>
+        .scanner-card {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+
+        .trip-selector-card {
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #ffffff;
+            border-radius: 12px;
+        }
+
+        .trip-selector-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        .trip-selector-card.active {
+            border-color: var(--futa-orange);
+            background: #fff8f5;
+            box-shadow: 0 4px 15px rgba(242, 101, 34, 0.2);
+        }
+
+        /* Camera Box */
+        #qr-reader {
+            width: 100% !important;
+            border: none !important;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #qr-reader__scan_region {
+            background: #000;
+        }
+
+        #qr-reader__dashboard {
+            padding: 10px;
+            background: #f8fafc;
+        }
+
+        .scanner-viewport-wrapper {
+            position: relative;
+            background: #0f172a;
+            border-radius: 16px;
+            overflow: hidden;
+            min-height: 280px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .scan-laser-line {
+            position: absolute;
+            left: 5%;
+            width: 90%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #22c55e, transparent);
+            box-shadow: 0 0 10px #22c55e, 0 0 20px #22c55e;
+            animation: laserScan 2s infinite ease-in-out;
+            z-index: 10;
+            pointer-events: none;
+            display: none;
+        }
+
+        @@keyframes laserScan {
+            0% { top: 15%; opacity: 0.2; }
+            50% { top: 85%; opacity: 1; }
+            100% { top: 15%; opacity: 0.2; }
+        }
+
+        /* Alert Notification Cards */
+        .checkin-alert-card {
+            border-radius: 14px;
+            padding: 16px;
+            margin-top: 14px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: slideInDown 0.35s ease;
+        }
+
+        .checkin-alert-success {
+            background: #ecfdf5;
+            border: 2px solid #10b981;
+            color: #065f46;
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.25);
+        }
+
+        .checkin-alert-danger {
+            background: #fef2f2;
+            border: 2px solid #ef4444;
+            color: #991b1b;
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.25);
+        }
+
+        @@keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Real-time Seat Map */
+        .seat-map-container {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e2e8f0;
+        }
+
+        .seat-bus-frame {
+            background: #f8fafc;
+            border: 2px dashed #cbd5e1;
+            border-radius: 18px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+
+        .seat-deck-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .seat-grid-layout {
+            display: grid;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .seat-node {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.8rem;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            user-select: none;
+        }
+
+        /* 1. Trống (Empty) */
+        .seat-node.seat-empty {
+            background: #ffffff;
+            border: 2px solid #cbd5e1;
+            color: #94a3b8;
+        }
+
+        /* 2. Đã đặt - Chưa lên xe (Booked / Waiting) */
+        .seat-node.seat-booked {
+            background: #fff7ed;
+            border: 2px solid #f97316;
+            color: #ea580c;
+            box-shadow: 0 2px 6px rgba(249, 115, 22, 0.15);
+        }
+
+        .seat-node.seat-booked:hover {
+            transform: scale(1.08);
+            background: #ffedd5;
+        }
+
+        /* 3. ĐÃ LÊN XE (Checked-In - GREEN) */
+        .seat-node.seat-checkedin {
+            background: #10b981;
+            border: 2px solid #059669;
+            color: #ffffff;
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);
+        }
+
+        .seat-node.seat-checkedin::after {
+            content: "✓";
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #047857;
+            color: white;
+            font-size: 9px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            border: 1px solid white;
+        }
+
+        /* Hiệu ứng nhấp nháy phát sáng khi vừa quét thành công */
+        @@keyframes seatSuccessPulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.9);
+            }
+            50% {
+                transform: scale(1.25);
+                box-shadow: 0 0 25px 8px rgba(16, 185, 129, 0.8);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);
+            }
+        }
+
+        .seat-node.just-checked-in {
+            animation: seatSuccessPulse 1.2s ease-out;
+        }
+
+        .badge-legend {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .trip-active-header {
+            background: linear-gradient(135deg, #F26522, #ea580c);
+            color: white;
+            border-radius: 14px;
+            padding: 14px 18px;
+            box-shadow: 0 4px 14px rgba(242, 101, 34, 0.25);
+        }
+    </style>
+}
+
+<div class="row g-2 mb-2">
+    <!-- Phần 1: Bộ lọc & Chọn chuyến xe xuất bến trong ngày -->
+    <div class="col-12">
+        <div class="card border-0 shadow-sm rounded-3 p-2 bg-white">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold text-dark fs-6 d-flex align-items-center gap-1">
+                        <i class="bi bi-calendar-event text-danger"></i> Chuyến xe:
+                    </span>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a asp-action="Index" asp-route-filter="today" class="btn @(Model.FilterMode == "today" ? "btn-danger fw-bold" : "btn-outline-secondary")">Hôm nay</a>
+                        <a asp-action="Index" asp-route-filter="tomorrow" class="btn @(Model.FilterMode == "tomorrow" ? "btn-danger fw-bold" : "btn-outline-secondary")">Ngày mai</a>
+                        <a asp-action="Index" asp-route-filter="all" class="btn @(Model.FilterMode == "all" ? "btn-danger fw-bold" : "btn-outline-secondary")">Tất cả</a>
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    <form method="get" asp-action="Index" class="d-flex align-items-center gap-1">
+                        <input type="date" name="date" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" class="form-control form-control-sm" onchange="this.form.submit()" />
+                    </form>
+                    @if (selectedTrip != null)
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1" onclick="generateDemoTickets(@selectedTrip.TripId)" title="Tạo vé mẫu để test">
+                            <i class="bi bi-plus-circle"></i> <span class="d-none d-sm-inline">Tạo vé mẫu</span>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <!-- Danh sách các chuyến xe có thể chọn (Responsive Scroll ngang trên mobile) -->
+            <div class="d-flex gap-2 overflow-auto py-2 mt-1">
+                @if (Model.Trips.Any())
+                {
+                    foreach (var trip in Model.Trips)
+                    {
+                        bool isCurrent = Model.SelectedTripId == trip.TripId;
+                        <a asp-action="Index" asp-route-tripId="@trip.TripId" asp-route-filter="@Model.FilterMode" asp-route-date="@Model.SelectedDate.ToString("yyyy-MM-dd")"
+                           class="trip-selector-card p-2 text-decoration-none text-dark flex-shrink-0 @(isCurrent ? "active" : "")" style="min-width: 220px;">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <span class="badge @(isCurrent ? "bg-danger" : "bg-secondary") font-monospace">@trip.DepartureTime.ToString("HH:mm")</span>
+                                <span class="badge bg-light text-dark border">@trip.LicensePlate</span>
+                            </div>
+                            <div class="fw-bold text-truncate" style="font-size: 0.9rem;" title="@trip.RouteName">
+                                @trip.RouteName
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-1" style="font-size: 0.75rem;">
+                                <span class="text-muted"><i class="bi bi-bus-front"></i> @trip.BusTypeName</span>
+                                <span class="fw-bold @(trip.CheckedInSeats == trip.BookedSeats && trip.BookedSeats > 0 ? "text-success" : "text-danger")">
+                                    <i class="bi bi-check-circle"></i> @trip.CheckedInSeats/@trip.BookedSeats vé
+                                </span>
+                            </div>
+                        </a>
+                    }
+                }
+                else
+                {
+                    <div class="alert alert-light border py-2 px-3 text-muted mb-0 small w-100 text-center">
+                        Không có chuyến xe nào xuất bến trong ngày được chọn. Vui lòng chọn "Ngày mai" hoặc "Tất cả".
+                    </div>
+                }
+            </div>
+        </div>
     </div>
 </div>
 
+@if (selectedTrip != null)
+{
+    <!-- Phần 2: Thanh thông tin Chuyến xe Đang Soát Vé -->
+    <div class="trip-active-header mb-3">
+        <div class="row align-items-center g-2">
+            <div class="col-md-7 col-12">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="badge bg-white text-danger fw-bold fs-6">CHUYẾN #@selectedTrip.TripId</span>
+                    <h5 class="mb-0 fw-bold text-white">@selectedTrip.RouteName</h5>
+                </div>
+                <div class="d-flex align-items-center gap-3 mt-1 text-white-50 small flex-wrap">
+                    <span><i class="bi bi-clock-fill text-warning"></i> Xuất bến: <strong class="text-white">@selectedTrip.DepartureTime.ToString("HH:mm - dd/MM/yyyy")</strong></span>
+                    <span><i class="bi bi-truck-front-fill text-warning"></i> Biển số: <strong class="text-white">@selectedTrip.LicensePlate</strong></span>
+                    <span><i class="bi bi-grid-3x3-gap-fill text-warning"></i> Loại xe: <strong class="text-white">@selectedTrip.BusTypeName</strong></span>
+                </div>
+            </div>
+
+            <div class="col-md-5 col-12">
+                <div class="bg-black bg-opacity-25 rounded-3 p-2">
+                    <div class="d-flex justify-content-between align-items-center small mb-1">
+                        <span>Tiến độ soát vé:</span>
+                        <strong id="stat-progress-text">@selectedTrip.CheckedInSeats / @selectedTrip.BookedSeats hành khách lên xe</strong>
+                    </div>
+                    @{
+                        int pct = selectedTrip.BookedSeats > 0 ? (int)Math.Round((double)selectedTrip.CheckedInSeats / selectedTrip.BookedSeats * 100) : 0;
+                    }
+                    <div class="progress" style="height: 10px; background-color: rgba(255,255,255,0.2);">
+                        <div id="stat-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: @pct%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phần 3: Giao diện Soát vé (Responsive: 2 Cột trên PC, Tabs trên Mobile) -->
+    <div class="row g-3">
+        <!-- Cột Trái: Máy quét QR Camera & Thẻ thông báo kết quả -->
+        <div class="col-lg-5 col-md-6 col-12">
+            <div class="scanner-card p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                        <i class="bi bi-camera-fill text-danger"></i> Camera quét mã QR
+                    </h6>
+                    <div class="d-flex gap-1">
+                        <button id="btn-switch-camera" class="btn btn-sm btn-outline-secondary" title="Đổi camera">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                        <button id="btn-toggle-torch" class="btn btn-sm btn-outline-warning" title="Bật đèn flash" style="display: none;">
+                            <i class="bi bi-lightning-fill"></i>
+                        </button>
+                        <button id="btn-toggle-scan" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1">
+                            <i class="bi bi-play-fill" id="scan-icon"></i> <span id="scan-btn-text">Bật Camera</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Vùng Camera Scanner -->
+                <div class="scanner-viewport-wrapper" id="scanner-wrapper">
+                    <div id="qr-reader"></div>
+                    <div class="scan-laser-line" id="scan-laser"></div>
+                    <div id="scanner-placeholder" class="text-center text-white-50 p-4">
+                        <i class="bi bi-camera-video fs-1 d-block mb-2 text-secondary"></i>
+                        <p class="small mb-1">Camera đang tạm dừng.</p>
+                        <button class="btn btn-sm btn-outline-light" onclick="startScanner()">
+                            <i class="bi bi-camera me-1"></i> Bật camera để quét vé
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Ô nhập mã QR / Mã ghế thủ công dự phòng -->
+                <div class="mt-3">
+                    <form id="form-manual-checkin" onsubmit="handleManualSubmit(event)" class="input-group input-group-sm">
+                        <input type="text" id="input-token-manual" class="form-control" placeholder="Nhập Token, Mã vé hoặc Số ghế (vd: A01)..." />
+                        <button class="btn btn-danger" type="submit">
+                            <i class="bi bi-check2-circle"></i> Soát vé
+                        </button>
+                    </form>
+                </div>
+
+                <!-- THẺ THÔNG BÁO KẾT QUẢ SOÁT VÉ (Real-time Alert Card) -->
+                <div id="checkin-alert-container">
+                    <div class="alert alert-light border text-center text-muted small py-3 mt-3 mb-0" id="default-scan-hint">
+                        <i class="bi bi-qr-code text-secondary fs-4 d-block mb-1"></i>
+                        Hướng camera về phía mã QR trên vé của khách hoặc nhập mã để soát vé.
+                    </div>
+                </div>
+
+                <!-- Danh sách quét gần nhất trong phiên -->
+                <div class="mt-3 pt-2 border-top">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small fw-bold text-muted"><i class="bi bi-clock-history"></i> Lịch sử lượt quét:</span>
+                        <span class="badge bg-light text-muted border" id="recent-scans-count">0 lượt</span>
+                    </div>
+                    <div id="recent-scans-list" class="list-group list-group-flush small" style="max-height: 140px; overflow-y: auto;">
+                        <div class="text-center text-muted py-2 small" id="no-recent-scans">Chưa có lượt quét nào</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cột Phải: Sơ đồ ghế thời gian thực & Danh sách hành khách -->
+        <div class="col-lg-7 col-md-6 col-12">
+            <div class="seat-map-container">
+                <!-- Navigation tabs (Sơ đồ ghế vs Danh sách khách) -->
+                <ul class="nav nav-pills nav-fill mb-3" id="seatTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active py-2 fw-semibold d-flex align-items-center justify-content-center gap-2" id="seatmap-tab" data-bs-toggle="tab" data-bs-target="#tab-seatmap" type="button" role="tab">
+                            <i class="bi bi-grid-3x3-gap"></i> Sơ đồ ghế xe
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-2 fw-semibold d-flex align-items-center justify-content-center gap-2" id="passengers-tab" data-bs-toggle="tab" data-bs-target="#tab-passengers" type="button" role="tab">
+                            <i class="bi bi-people-fill"></i> Danh sách hành khách (<span id="tab-pax-count">@Model.Tickets.Count</span>)
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="seatTabContent">
+                    <!-- Tab 1: Sơ đồ ghế trực quan đổi màu thời gian thực -->
+                    <div class="tab-pane fade show active" id="tab-seatmap" role="tabpanel">
+                        <!-- Legend / Chú thích màu sắc -->
+                        <div class="d-flex flex-wrap gap-2 justify-content-center mb-3 p-2 bg-light rounded-3 border">
+                            <span class="badge-legend bg-white border text-secondary">
+                                <span class="d-inline-block rounded-2" style="width: 14px; height: 14px; background: #fff; border: 2px solid #cbd5e1;"></span> Ghế trống
+                            </span>
+                            <span class="badge-legend bg-white border text-warning">
+                                <span class="d-inline-block rounded-2" style="width: 14px; height: 14px; background: #fff7ed; border: 2px solid #f97316;"></span> Chờ lên xe (<span id="legend-waiting">@selectedTrip.BookedSeats - @selectedTrip.CheckedInSeats</span>)
+                            </span>
+                            <span class="badge-legend bg-white border text-success">
+                                <span class="d-inline-block rounded-2" style="width: 14px; height: 14px; background: #10b981; border: 2px solid #059669;"></span> ĐÃ LÊN XE (<span id="legend-checkedin">@selectedTrip.CheckedInSeats</span>)
+                            </span>
+                        </div>
+
+                        <!-- Render Decks -->
+                        <div id="decks-container" class="row g-2 justify-content-center">
+                            @if (Model.SeatMap != null && Model.SeatMap.Decks.Any())
+                            {
+                                foreach (var deck in Model.SeatMap.Decks)
+                                {
+                                    <div class="col-12 col-xl-@(Model.SeatMap.Decks.Count > 1 ? "6" : "12")">
+                                        <div class="seat-bus-frame">
+                                            <div class="seat-deck-title">
+                                                <span><i class="bi bi-layers"></i> @deck.DeckName</span>
+                                                <span class="badge bg-secondary">@(deck.Seats.Count(s => s.Status == "CHECKED_IN"))/@(deck.Seats.Count(s => s.Status != "EMPTY")) khách</span>
+                                            </div>
+
+                                            <div class="seat-grid-layout" style="grid-template-columns: repeat(@deck.Cols, 48px);">
+                                                @foreach (var seat in deck.Seats)
+                                                {
+                                                    string statusClass = seat.Status switch
+                                                    {
+                                                        "CHECKED_IN" => "seat-checkedin",
+                                                        "BOOKED" => "seat-booked",
+                                                        _ => "seat-empty"
+                                                    };
+
+                                                    <div class="seat-node @statusClass"
+                                                         id="seat-node-@seat.Code"
+                                                         data-seat-code="@seat.Code"
+                                                         data-passenger="@seat.PassengerName"
+                                                         data-phone="@seat.PassengerPhone"
+                                                         data-status="@seat.Status"
+                                                         data-time="@seat.CheckedInAt"
+                                                         data-ticket-id="@seat.TicketId"
+                                                         data-qr-token="@seat.QrToken"
+                                                         onclick="handleSeatClick(this)"
+                                                         title="@seat.Code: @(string.IsNullOrEmpty(seat.PassengerName) ? "Ghế trống" : seat.PassengerName)">
+                                                        <span>@seat.Code</span>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="col-12 text-center text-muted py-4">
+                                    Không có dữ liệu sơ đồ ghế cho loại xe này.
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: Danh sách vé & Hành khách -->
+                    <div class="tab-pane fade" id="tab-passengers" role="tabpanel">
+                        <div class="mb-2">
+                            <input type="text" id="filter-passenger-input" class="form-control form-control-sm" placeholder="Tìm kiếm hành khách, số điện thoại, ghế..." onkeyup="filterPassengerTable()" />
+                        </div>
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-sm table-hover align-middle mb-0" id="passengers-table" style="font-size: 0.85rem;">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Ghế</th>
+                                        <th>Khách hàng</th>
+                                        <th>SĐT</th>
+                                        <th>Trạng thái</th>
+                                        <th class="text-end">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (Model.Tickets.Any())
+                                    {
+                                        foreach (var tk in Model.Tickets)
+                                        {
+                                            <tr id="pax-row-@tk.SeatCode" class="@(tk.Status == TicketStatus.CheckedIn ? "table-success" : "")">
+                                                <td class="fw-bold text-danger">@tk.SeatCode</td>
+                                                <td>
+                                                    <div class="fw-semibold">@tk.PassengerName</div>
+                                                    <small class="text-muted font-monospace" style="font-size: 0.7rem;">Mã vé: #@tk.TicketId</small>
+                                                </td>
+                                                <td>@tk.PassengerPhone</td>
+                                                <td>
+                                                    @if (tk.Status == TicketStatus.CheckedIn)
+                                                    {
+                                                        <span class="badge bg-success" id="badge-pax-@tk.SeatCode"><i class="bi bi-check"></i> Đã lên xe</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning text-dark" id="badge-pax-@tk.SeatCode">Chờ lên xe</span>
+                                                    }
+                                                </td>
+                                                <td class="text-end">
+                                                    @if (tk.Status != TicketStatus.CheckedIn)
+                                                    {
+                                                        <button class="btn btn-xs btn-outline-success py-0 px-2" onclick="manualCheckInTicket(@tk.TicketId, '@tk.SeatCode')" title="Soát vé thủ công">
+                                                            <i class="bi bi-check-lg"></i> Soát vé
+                                                        </button>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(tk.QrToken))
+                                                    {
+                                                        <button class="btn btn-xs btn-outline-secondary py-0 px-1" onclick="showTicketQrModal('@tk.SeatCode', '@tk.PassengerName', '@tk.QrToken')" title="Xem mã QR">
+                                                            <i class="bi bi-qr-code"></i>
+                                                        </button>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-3">Chưa có vé nào được đặt cho chuyến này.</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Chi tiết Ghế khi click -->
+    <div class="modal fade" id="seatDetailModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title fw-bold" id="modal-seat-title">Chi tiết ghế</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body py-3 text-center" id="modal-seat-body">
+                    <!-- Dynamic details -->
+                </div>
+                <div class="modal-footer py-1 justify-content-center" id="modal-seat-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Xem Mã QR để tiện kiểm thử -->
+    <div class="modal fade" id="ticketQrModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content text-center">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title fw-bold" id="qr-modal-title">Mã QR vé khách</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body py-3">
+                    <p class="small text-muted mb-2" id="qr-modal-desc"></p>
+                    <div id="qr-modal-canvas-box" class="d-flex justify-content-center my-2"></div>
+                    <div class="input-group input-group-sm mt-3">
+                        <input type="text" id="qr-modal-token-input" class="form-control text-center font-monospace" readonly />
+                        <button class="btn btn-outline-danger" type="button" onclick="testScanTokenFromModal()">
+                            <i class="bi bi-play"></i> Quét ngay
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        const CURRENT_TRIP_ID = @(selectedTrip?.TripId ?? 0);
+        let html5QrCode = null;
+        let isScanning = false;
+        let currentCameraId = null;
+        let camerasList = [];
+        let recentScans = [];
+        let isTorchOn = false;
+        let audioCtx = null;
+
+        // Âm thanh phản hồi trực tiếp bằng Web Audio API (không phụ thuộc file âm thanh mạng)
+        function playFeedbackSound(isSuccess) {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (isSuccess) {
+                    // Âm Chime thành công (Hai nốt thanh cao vui tai: 880Hz -> 1320Hz)
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(880, now);
+                    osc.frequency.exponentialRampToValueAtTime(1320, now + 0.15);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                } else {
+                    // Âm Buzzer cảnh báo đỏ (Hai nốt trầm giật: 220Hz -> 150Hz)
+                    osc.type = "sawtooth";
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.setValueAtTime(150, now + 0.15);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                }
+            } catch (e) {
+                console.warn("Audio feedback error:", e);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (CURRENT_TRIP_ID > 0) {
+                initCameraDevices();
+                // Bắt đầu chu kỳ polling cập nhật sơ đồ ghế mỗi 4 giây
+                setInterval(refreshSeatMapData, 4000);
+            }
+        });
+
+        // Khởi tạo thiết bị Camera
+        async function initCameraDevices() {
+            try {
+                if (typeof Html5Qrcode === "undefined") {
+                    console.error("Html5Qrcode library not loaded!");
+                    return;
+                }
+
+                camerasList = await Html5Qrcode.getCameras();
+                if (camerasList && camerasList.length > 0) {
+                    // Ưu tiên camera sau (environment / back)
+                    const backCam = camerasList.find(c => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('environment'));
+                    currentCameraId = backCam ? backCam.id : camerasList[0].id;
+                }
+            } catch (err) {
+                console.warn("Cannot access camera list:", err);
+            }
+        }
+
+        // Bật / Tắt camera quét QR
+        async function toggleScanner() {
+            if (isScanning) {
+                stopScanner();
+            } else {
+                startScanner();
+            }
+        }
+
+        document.getElementById('btn-toggle-scan')?.addEventListener('click', toggleScanner);
+
+        async function startScanner() {
+            if (isScanning || CURRENT_TRIP_ID <= 0) return;
+
+            try {
+                if (!html5QrCode) {
+                    html5QrCode = new Html5Qrcode("qr-reader");
+                }
+
+                const config = {
+                    fps: 15,
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0
+                };
+
+                const cameraIdOrConfig = currentCameraId ? currentCameraId : { facingMode: "environment" };
+
+                await html5QrCode.start(
+                    cameraIdOrConfig,
+                    config,
+                    onQrCodeScanned,
+                    onScanError
+                );
+
+                isScanning = true;
+                document.getElementById('scanner-placeholder').style.display = 'none';
+                document.getElementById('scan-laser').style.display = 'block';
+                document.getElementById('scan-btn-text').textContent = 'Tắt Camera';
+                document.getElementById('scan-icon').className = 'bi bi-stop-fill';
+                document.getElementById('btn-toggle-scan').className = 'btn btn-sm btn-secondary d-inline-flex align-items-center gap-1';
+
+            } catch (err) {
+                console.error("Failed to start scanner:", err);
+                alert("Không thể khởi động Camera. Vui lòng cấp quyền truy cập Camera cho trình duyệt hoặc thử thiết bị khác.");
+                stopScanner();
+            }
+        }
+
+        async function stopScanner() {
+            if (!isScanning || !html5QrCode) return;
+
+            try {
+                await html5QrCode.stop();
+            } catch (e) {
+                console.warn("Error stopping scanner:", e);
+            }
+
+            isScanning = false;
+            document.getElementById('scanner-placeholder').style.display = 'block';
+            document.getElementById('scan-laser').style.display = 'none';
+            document.getElementById('scan-btn-text').textContent = 'Bật Camera';
+            document.getElementById('scan-icon').className = 'bi bi-play-fill';
+            document.getElementById('btn-toggle-scan').className = 'btn btn-sm btn-danger d-inline-flex align-items-center gap-1';
+        }
+
+        // Chuyển đổi qua lại giữa camera trước và sau
+        document.getElementById('btn-switch-camera')?.addEventListener('click', async function () {
+            if (camerasList.length <= 1) {
+                alert("Thiết bị chỉ có 1 camera khả dụng.");
+                return;
+            }
+
+            const currentIndex = camerasList.findIndex(c => c.id === currentCameraId);
+            const nextIndex = (currentIndex + 1) % camerasList.length;
+            currentCameraId = camerasList[nextIndex].id;
+
+            if (isScanning) {
+                await stopScanner();
+                await startScanner();
+            }
+        });
+
+        // Xử lý khi camera quét thấy mã QR
+        let lastScanTime = 0;
+        let lastScannedText = "";
+        function onQrCodeScanned(decodedText, decodedResult) {
+            const now = Date.now();
+            // Debounce 1.5 giây để tránh quét liên tiếp cùng 1 mã trong nháy mắt
+            if (now - lastScanTime < 1500 && lastScannedText === decodedText) {
+                return;
+            }
+
+            lastScanTime = now;
+            lastScannedText = decodedText;
+
+            console.log("QR Code detected:", decodedText);
+            verifyAndCheckIn(decodedText);
+        }
+
+        function onScanError(errorMessage) {
+            // Lỗi khi camera chưa nhận diện được QR ở frame hiện tại -> bỏ qua để tiếp tục quét
+        }
+
+        // Xử lý form nhập mã thủ công
+        function handleManualSubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById('input-token-manual');
+            const token = input.value.trim();
+            if (!token) return;
+
+            verifyAndCheckIn(token);
+            input.value = '';
+        }
+
+        // GỌI API KIỂM TRA QR TOKEN THEO TRIP ID
+        async function verifyAndCheckIn(token) {
+            try {
+                const response = await fetch('/TicketInspector/Dashboard/CheckIn', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        tripId: CURRENT_TRIP_ID,
+                        qrToken: token
+                    })
+                });
+
+                const data = await response.json();
+                renderCheckInResult(data);
+
+            } catch (err) {
+                console.error("API CheckIn error:", err);
+                renderCheckInResult({
+                    success: false,
+                    resultType: "ERROR",
+                    message: "Không thể kết nối đến máy chủ! Vui lòng kiểm tra mạng."
+                });
+            }
+        }
+
+        // HIỂN THỊ THẺ THÔNG BÁO XANH / ĐỎ
+        function renderCheckInResult(res) {
+            const container = document.getElementById('checkin-alert-container');
+            const defaultHint = document.getElementById('default-scan-hint');
+            if (defaultHint) defaultHint.style.display = 'none';
+
+            playFeedbackSound(res.success);
+
+            let html = '';
+            if (res.success) {
+                // Thẻ màu xanh kèm Tên khách, Số ghế
+                html = `
+                    <div class="checkin-alert-card checkin-alert-success">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="fw-bold d-flex align-items-center gap-2 fs-6">
+                                <i class="bi bi-check-circle-fill fs-4 text-success"></i> SOÁT VÉ THÀNH CÔNG
+                            </span>
+                            <span class="badge bg-success fs-6 px-3 py-1 font-monospace">GHẾ: ${res.seatCode || ''}</span>
+                        </div>
+                        <div class="bg-white rounded-3 p-3 border shadow-sm">
+                            <div class="row g-2">
+                                <div class="col-7">
+                                    <small class="text-muted d-block">Hành khách:</small>
+                                    <strong class="text-dark fs-6">${res.passengerName || 'N/A'}</strong>
+                                    <div class="small text-muted mt-1"><i class="bi bi-telephone"></i> ${res.passengerPhone || 'N/A'}</div>
+                                </div>
+                                <div class="col-5 text-end">
+                                    <small class="text-muted d-block">Giờ soát vé:</small>
+                                    <strong class="text-success font-monospace">${res.checkedInAt || 'Vừa xong'}</strong>
+                                    <div class="mt-1"><span class="badge bg-success-subtle text-success border border-success">Đã lên xe</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Đổi màu sơ đồ ghế thời gian thực!
+                if (res.seatCode) {
+                    markSeatCheckedInRealTime(res.seatCode, res.passengerName, res.passengerPhone, res.checkedInAt);
+                }
+
+                // Cập nhật thanh tiến độ
+                if (res.stats) {
+                    updateStatsUI(res.stats);
+                }
+
+            } else {
+                // Thẻ thông báo màu đỏ khi vé đã quét rồi hoặc sai chuyến
+                let warningBadge = "LỖI";
+                if (res.resultType === "ALREADY_CHECKED_IN") warningBadge = "ĐÃ SOÁT RỒI";
+                else if (res.resultType === "WRONG_TRIP") warningBadge = "SAI CHUYẾN";
+                else if (res.resultType === "VOID") warningBadge = "VÉ ĐÃ HỦY";
+
+                html = `
+                    <div class="checkin-alert-card checkin-alert-danger">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="fw-bold d-flex align-items-center gap-2 fs-6">
+                                <i class="bi bi-exclamation-triangle-fill fs-4 text-danger"></i> CẢNH BÁO SOÁT VÉ
+                            </span>
+                            <span class="badge bg-danger fs-6 px-2 py-1">${warningBadge}</span>
+                        </div>
+                        <div class="bg-white rounded-3 p-3 border shadow-sm">
+                            <p class="mb-2 text-danger fw-semibold">${res.message}</p>
+                            ${res.passengerName ? `
+                                <div class="small text-muted border-top pt-2 mt-2 d-flex justify-content-between">
+                                    <span>Khách hàng: <strong>${res.passengerName}</strong></span>
+                                    <span>Số ghế: <strong class="text-dark">${res.seatCode || ''}</strong></span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+
+            // Thêm vào lịch sử lượt quét
+            addRecentScanLog(res);
+        }
+
+        // ĐỔI MÀU GHẾ TRỰC QUAN THỜI GIAN THỰC
+        function markSeatCheckedInRealTime(seatCode, passengerName, phone, time) {
+            const seatEl = document.getElementById(`seat-node-${seatCode}`);
+            if (seatEl) {
+                seatEl.className = 'seat-node seat-checkedin just-checked-in';
+                seatEl.setAttribute('data-status', 'CHECKED_IN');
+                seatEl.setAttribute('data-passenger', passengerName || '');
+                seatEl.setAttribute('data-phone', phone || '');
+                seatEl.setAttribute('data-time', time || '');
+
+                setTimeout(() => {
+                    seatEl.classList.remove('just-checked-in');
+                }, 1500);
+            }
+
+            // Cập nhật dòng trong bảng danh sách hành khách
+            const rowEl = document.getElementById(`pax-row-${seatCode}`);
+            if (rowEl) {
+                rowEl.className = 'table-success';
+                const badgeEl = document.getElementById(`badge-pax-${seatCode}`);
+                if (badgeEl) {
+                    badgeEl.className = 'badge bg-success';
+                    badgeEl.innerHTML = '<i class="bi bi-check"></i> Đã lên xe';
+                }
+            }
+        }
+
+        // Cập nhật thanh tiến độ soát vé
+        function updateStatsUI(stats) {
+            const progBar = document.getElementById('stat-progress-bar');
+            const progText = document.getElementById('stat-progress-text');
+            const legendCheckedIn = document.getElementById('legend-checkedin');
+            const legendWaiting = document.getElementById('legend-waiting');
+
+            if (progBar && stats.BookedSeats > 0) {
+                const pct = Math.round((stats.CheckedInSeats / stats.BookedSeats) * 100);
+                progBar.style.width = pct + '%';
+            }
+            if (progText) {
+                progText.textContent = `${stats.CheckedInSeats} / ${stats.BookedSeats} hành khách lên xe`;
+            }
+            if (legendCheckedIn) {
+                legendCheckedIn.textContent = stats.CheckedInSeats;
+            }
+            if (legendWaiting) {
+                legendWaiting.textContent = stats.BookedSeats - stats.CheckedInSeats;
+            }
+        }
+
+        // Thêm vào lịch sử phiên soát vé
+        function addRecentScanLog(res) {
+            const listEl = document.getElementById('recent-scans-list');
+            const emptyEl = document.getElementById('no-recent-scans');
+            if (emptyEl) emptyEl.style.display = 'none';
+
+            const countBadge = document.getElementById('recent-scans-count');
+            recentScans.unshift(res);
+            if (recentScans.length > 8) recentScans.pop();
+
+            if (countBadge) countBadge.textContent = recentScans.length + ' lượt';
+
+            const item = document.createElement('div');
+            item.className = `list-group-item list-group-item-action d-flex justify-content-between align-items-center py-1 px-2 border-0 border-bottom ${res.success ? '' : 'bg-danger-subtle'}`;
+            item.innerHTML = `
+                <div class="text-truncate me-2">
+                    <span class="badge ${res.success ? 'bg-success' : 'bg-danger'} font-monospace me-1">${res.seatCode || '✕'}</span>
+                    <strong>${res.passengerName || 'Không xác định'}</strong>
+                    <div class="text-muted" style="font-size: 0.7rem;">${res.message}</div>
+                </div>
+                <small class="text-muted font-monospace">${new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</small>
+            `;
+
+            listEl.prepend(item);
+        }
+
+        // Xử lý khi nhấn vào một ghế trên sơ đồ
+        function handleSeatClick(el) {
+            const code = el.getAttribute('data-seat-code');
+            const status = el.getAttribute('data-status');
+            const passenger = el.getAttribute('data-passenger');
+            const phone = el.getAttribute('data-phone');
+            const time = el.getAttribute('data-time');
+            const ticketId = el.getAttribute('data-ticket-id');
+
+            document.getElementById('modal-seat-title').textContent = `Ghế ${code}`;
+            const body = document.getElementById('modal-seat-body');
+            const footer = document.getElementById('modal-seat-footer');
+
+            let bodyHtml = '';
+            let footerHtml = '<button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>';
+
+            if (status === 'EMPTY') {
+                bodyHtml = `
+                    <div class="text-muted my-2">
+                        <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                        <p class="mb-0 fw-semibold">Ghế trống</p>
+                        <small>Chưa có hành khách đặt ghế này.</small>
+                    </div>
+                `;
+            } else if (status === 'CHECKED_IN') {
+                bodyHtml = `
+                    <div class="text-success my-2">
+                        <i class="bi bi-check-circle-fill fs-1 d-block mb-2"></i>
+                        <h6 class="fw-bold mb-1">${passenger || 'Hành khách'}</h6>
+                        <p class="text-muted small mb-1"><i class="bi bi-telephone"></i> ${phone || 'N/A'}</p>
+                        <div class="badge bg-success-subtle text-success border border-success px-3 py-1">
+                            Đã lên xe lúc: ${time || 'N/A'}
+                        </div>
+                    </div>
+                `;
+            } else {
+                // BOOKED (Chưa lên xe)
+                bodyHtml = `
+                    <div class="text-warning my-2">
+                        <i class="bi bi-clock-history fs-1 d-block mb-2 text-warning"></i>
+                        <h6 class="fw-bold text-dark mb-1">${passenger || 'Hành khách'}</h6>
+                        <p class="text-muted small mb-1"><i class="bi bi-telephone"></i> ${phone || 'N/A'}</p>
+                        <div class="badge bg-warning-subtle text-warning-emphasis border border-warning px-3 py-1">
+                            Chờ lên xe (Chưa soát vé)
+                        </div>
+                    </div>
+                `;
+
+                footerHtml = `
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-sm btn-success" onclick="manualCheckInTicket(${ticketId}, '${code}')">
+                        <i class="bi bi-check-lg"></i> Xác nhận lên xe
+                    </button>
+                `;
+            }
+
+            body.innerHTML = bodyHtml;
+            footer.innerHTML = footerHtml;
+
+            const modal = new bootstrap.Modal(document.getElementById('seatDetailModal'));
+            modal.show();
+        }
+
+        // Soát vé thủ công
+        async function manualCheckInTicket(ticketId, seatCode) {
+            try {
+                // Đóng modal chi tiết nếu đang mở
+                const modalEl = document.getElementById('seatDetailModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+
+                const response = await fetch('/TicketInspector/Dashboard/ManualCheckIn', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tripId: CURRENT_TRIP_ID,
+                        ticketId: ticketId,
+                        seatCode: seatCode
+                    })
+                });
+
+                const data = await response.json();
+                renderCheckInResult(data);
+            } catch (err) {
+                console.error("ManualCheckIn error:", err);
+            }
+        }
+
+        // Định kỳ lấy dữ liệu sơ đồ ghế mới nhất từ server
+        async function refreshSeatMapData() {
+            if (CURRENT_TRIP_ID <= 0) return;
+
+            try {
+                const response = await fetch(`/TicketInspector/Dashboard/GetSeatMap?tripId=${CURRENT_TRIP_ID}`);
+                if (!response.ok) return;
+
+                const data = await response.json();
+                if (data && data.decks) {
+                    data.decks.forEach(deck => {
+                        deck.seats.forEach(s => {
+                            const seatNode = document.getElementById(`seat-node-${s.code}`);
+                            if (seatNode) {
+                                const currentStatus = seatNode.getAttribute('data-status');
+                                if (currentStatus !== s.status) {
+                                    seatNode.className = `seat-node ${s.status === 'CHECKED_IN' ? 'seat-checkedin' : (s.status === 'BOOKED' ? 'seat-booked' : 'seat-empty')}`;
+                                    seatNode.setAttribute('data-status', s.status);
+                                    seatNode.setAttribute('data-passenger', s.passengerName || '');
+                                    seatNode.setAttribute('data-phone', s.passengerPhone || '');
+                                    seatNode.setAttribute('data-time', s.checkedInAt || '');
+                                }
+                            }
+                        });
+                    });
+
+                    if (data.stats) {
+                        updateStatsUI(data.stats);
+                    }
+                }
+            } catch (e) {
+                // Im lặng khi polling gặp sự cố tạm thời
+            }
+        }
+
+        // Lọc bảng danh sách hành khách
+        function filterPassengerTable() {
+            const input = document.getElementById('filter-passenger-input').value.toLowerCase();
+            const rows = document.querySelectorAll('#passengers-table tbody tr');
+
+            rows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                row.style.display = text.includes(input) ? '' : 'none';
+            });
+        }
+
+        // Tạo vé mẫu cho chuyến xe
+        async function generateDemoTickets(tripId) {
+            if (!confirm("Tạo thêm 6 vé mẫu có mã QR cho chuyến xe này để thử nghiệm tính năng soát vé?")) return;
+
+            try {
+                const response = await fetch('/TicketInspector/Dashboard/GenerateDemoTickets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(tripId)
+                });
+                const res = await response.json();
+                alert(res.message);
+                window.location.reload();
+            } catch (e) {
+                alert("Lỗi khi tạo vé mẫu.");
+            }
+        }
+
+        // Hiển thị modal chứa mã QR để người dùng test quét bằng điện thoại khác hoặc màn hình
+        function showTicketQrModal(seat, name, token) {
+            document.getElementById('qr-modal-title').textContent = `Mã QR - Ghế ${seat}`;
+            document.getElementById('qr-modal-desc').textContent = `Khách hàng: ${name}`;
+            document.getElementById('qr-modal-token-input').value = token;
+
+            const box = document.getElementById('qr-modal-canvas-box');
+            // Sử dụng Google Charts API hoặc quickchart API để sinh hình ảnh QR code
+            box.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(token)}" alt="QR Code" class="img-fluid border p-1 rounded-2 shadow-sm" />`;
+
+            const modal = new bootstrap.Modal(document.getElementById('ticketQrModal'));
+            modal.show();
+        }
+
+        function testScanTokenFromModal() {
+            const token = document.getElementById('qr-modal-token-input').value;
+            const modalEl = document.getElementById('ticketQrModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+
+            verifyAndCheckIn(token);
+        }
+    </script>
+}

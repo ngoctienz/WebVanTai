@@ -1,11 +1,482 @@
+@model WebVanTai.Areas.Admin.ViewModels.AdminDashboardViewModel
 @{
-    ViewData["Title"] = "Admin Dashboard";
+    ViewData["Title"] = "Bảng điều khiển & Thống kê";
 }
 
-<div class="container-fluid py-4">
-    <h2 class="mb-4 text-primary">Admin Dashboard</h2>
-    <div class="alert alert-info">
-        Chào mừng Quản trị viên hệ thống đến với trung tâm điều hành WebVanTai.
+@section Styles {
+    <style>
+        .stat-card {
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 1.25rem;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+        }
+
+        .stat-icon-badge {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+        }
+
+        .chart-card {
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 1.25rem;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+            height: 100%;
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+    </style>
+}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h4 class="fw-bold mb-1 text-dark">
+            <i class="bi bi-speedometer2 text-danger me-2"></i>Bảng điều khiển thống kê vận hành
+        </h4>
+        <p class="text-muted small mb-0">Theo dõi doanh thu, tỷ lệ lấp đầy ghế và hoạt động các tuyến xe thời gian thực</p>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-white text-dark border py-2 px-3 shadow-sm d-flex align-items-center gap-2">
+            <span class="spinner-grow spinner-grow-sm text-success" role="status"></span>
+            Hệ thống đang hoạt động
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="window.location.reload()">
+            <i class="bi bi-arrow-clockwise"></i> Làm mới
+        </button>
     </div>
 </div>
 
+<!-- 4 THẺ CHỈ SỐ KPI CHÍNH -->
+<div class="row g-3 mb-4">
+    <!-- Card 1: Doanh thu -->
+    <div class="col-xl-3 col-sm-6 col-12">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Tổng doanh thu</span>
+                    <h3 class="fw-bold text-danger mb-0 mt-1">@Model.TotalRevenue.ToString("N0") <small class="fs-6">đ</small></h3>
+                </div>
+                <div class="stat-icon-badge bg-danger-subtle text-danger">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+            </div>
+            <div class="small text-muted border-top pt-2 mt-2 d-flex justify-content-between">
+                <span>Tháng này: <strong>@Model.ThisMonthRevenue.ToString("N0") đ</strong></span>
+                <span class="text-success"><i class="bi bi-arrow-up-short"></i> Hoàn tất</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 2: Tỷ lệ lấp đầy ghế -->
+    <div class="col-xl-3 col-sm-6 col-12">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Tỷ lệ lấp đầy ghế</span>
+                    <h3 class="fw-bold text-success mb-0 mt-1">@Model.OverallOccupancyRate%</h3>
+                </div>
+                <div class="stat-icon-badge bg-success-subtle text-success">
+                    <i class="bi bi-pie-chart-fill"></i>
+                </div>
+            </div>
+            <div class="progress mt-2" style="height: 6px;">
+                <div class="progress-bar bg-success" role="progressbar" style="width: @Model.OverallOccupancyRate%;"></div>
+            </div>
+            <div class="small text-muted border-top pt-2 mt-2 d-flex justify-content-between">
+                <span>Đã bán: <strong>@Model.TotalSeatsSold / @Model.TotalSeatsSystem ghế</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 3: Số chuyến xe -->
+    <div class="col-xl-3 col-sm-6 col-12">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Tổng số chuyến xe</span>
+                    <h3 class="fw-bold text-primary mb-0 mt-1">@Model.TotalTrips <small class="fs-6">chuyến</small></h3>
+                </div>
+                <div class="stat-icon-badge bg-primary-subtle text-primary">
+                    <i class="bi bi-bus-front"></i>
+                </div>
+            </div>
+            <div class="small text-muted border-top pt-2 mt-2 d-flex justify-content-between">
+                <span>Lên lịch: <strong>@Model.ScheduledTrips</strong></span>
+                <span>Hoàn thành: <strong>@Model.CompletedTrips</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 4: Tỷ lệ soát vé -->
+    <div class="col-xl-3 col-sm-6 col-12">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <span class="text-muted small fw-semibold text-uppercase">Tỷ lệ khách lên xe</span>
+                    <h3 class="fw-bold text-warning mb-0 mt-1">@Model.OverallCheckInRate%</h3>
+                </div>
+                <div class="stat-icon-badge bg-warning-subtle text-warning">
+                    <i class="bi bi-person-check-fill"></i>
+                </div>
+            </div>
+            <div class="progress mt-2" style="height: 6px;">
+                <div class="progress-bar bg-warning" role="progressbar" style="width: @Model.OverallCheckInRate%;"></div>
+            </div>
+            <div class="small text-muted border-top pt-2 mt-2 d-flex justify-content-between">
+                <span>Đã soát vé: <strong>@Model.TotalSeatsCheckedIn / @Model.TotalSeatsSold khách</strong></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- HÀNG BIỂU ĐỒ CHART.JS #1: DOANH THU THEO TUYẾN & TỶ LỆ LẤP ĐẦY GHẾ -->
+<div class="row g-3 mb-4">
+    <!-- Biểu đồ 1: Doanh thu theo tuyến -->
+    <div class="col-lg-7 col-12">
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-bar-chart-fill text-danger"></i> Doanh thu theo tuyến xe (VNĐ)
+                    </h6>
+                    <small class="text-muted">Tổng số tiền thu được từ vé đã thanh toán trên mỗi tuyến</small>
+                </div>
+            </div>
+            <div style="height: 320px; position: relative;">
+                <canvas id="revenueByRouteChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Biểu đồ 2: Tỷ lệ lấp đầy ghế theo tuyến -->
+    <div class="col-lg-5 col-12">
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-pie-chart-fill text-success"></i> Tỷ lệ lấp đầy ghế theo tuyến (%)
+                    </h6>
+                    <small class="text-muted">Tỷ số ghế đã bán trên tổng số ghế khả dụng</small>
+                </div>
+            </div>
+            <div style="height: 320px; position: relative;">
+                <canvas id="occupancyByRouteChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- HÀNG BIỂU ĐỒ CHART.JS #2: XU HƯỚNG THEO THỜI GIAN & TRẠNG THÁI VÉ -->
+<div class="row g-3 mb-4">
+    <!-- Biểu đồ 3: Xu hướng doanh thu 7 ngày qua -->
+    <div class="col-lg-7 col-12">
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-graph-up text-primary"></i> Xu hướng doanh thu 7 ngày gần nhất
+                    </h6>
+                    <small class="text-muted">Biến động dòng tiền theo các mốc thời gian</small>
+                </div>
+            </div>
+            <div style="height: 280px; position: relative;">
+                <canvas id="dailyRevenueTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Biểu đồ 4: Cơ cấu trạng thái vé -->
+    <div class="col-lg-5 col-12">
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-ticket-detailed-fill text-warning"></i> Cơ cấu trạng thái vé
+                    </h6>
+                    <small class="text-muted">Phân loại vé đã soát, chờ lên xe và vé hủy</small>
+                </div>
+            </div>
+            <div style="height: 280px; position: relative;" class="d-flex align-items-center justify-content-center">
+                <canvas id="ticketStatusBreakdownChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- BẢNG DỮ LIỆU CHI TIẾT HIỆU QUẢ CÁC TUYẾN XE -->
+<div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
+        <h6 class="fw-bold mb-0 text-dark">
+            <i class="bi bi-table text-danger me-2"></i>Bảng tổng hợp chi tiết theo tuyến đường
+        </h6>
+        <span class="badge bg-light text-muted border">@Model.RouteStats.Count tuyến đường</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 text-nowrap">
+            <thead class="table-light text-uppercase small" style="font-size: 0.75rem;">
+                <tr>
+                    <th>Tuyến đường</th>
+                    <th class="text-center">Số chuyến</th>
+                    <th class="text-center">Sức chứa</th>
+                    <th class="text-center">Vé đã bán</th>
+                    <th>Tỷ lệ lấp đầy</th>
+                    <th class="text-end">Doanh thu</th>
+                    <th class="text-end">Doanh thu TB / Chuyến</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.RouteStats.Any())
+                {
+                    foreach (var route in Model.RouteStats)
+                    {
+                        <tr>
+                            <td class="fw-bold text-dark">
+                                <i class="bi bi-signpost-2 text-danger me-1"></i> @route.RouteName
+                            </td>
+                            <td class="text-center"><span class="badge bg-secondary-subtle text-secondary px-2">@route.TripsCount chuyến</span></td>
+                            <td class="text-center font-monospace">@route.TotalSeats</td>
+                            <td class="text-center font-monospace fw-semibold">@route.SoldSeats</td>
+                            <td style="min-width: 140px;">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="progress flex-grow-1" style="height: 8px;">
+                                        @{
+                                            string progressColor = route.OccupancyRate >= 70 ? "bg-success" : (route.OccupancyRate >= 40 ? "bg-warning" : "bg-danger");
+                                        }
+                                        <div class="progress-bar @progressColor" role="progressbar" style="width: @route.OccupancyRate%;"></div>
+                                    </div>
+                                    <span class="small fw-bold">@route.OccupancyRate%</span>
+                                </div>
+                            </td>
+                            <td class="text-end fw-bold text-danger">@route.TotalRevenue.ToString("N0") đ</td>
+                            <td class="text-end text-muted font-monospace">@route.AvgRevenuePerTrip.ToString("N0") đ</td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">Chưa có dữ liệu thống kê tuyến đường.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Chuẩn bị dữ liệu từ Razor Model sang JavaScript
+            const routeLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RouteStats.Select(r => r.RouteName)));
+            const routeRevenues = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RouteStats.Select(r => r.TotalRevenue)));
+            const routeOccupancies = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RouteStats.Select(r => r.OccupancyRate)));
+
+            const dailyLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DailyRevenueStats.Select(d => d.DateLabel)));
+            const dailyRevenues = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DailyRevenueStats.Select(d => d.Revenue)));
+
+            const validCount = @Model.TicketStatusBreakdown.ValidCount;
+            const checkedInCount = @Model.TicketStatusBreakdown.CheckedInCount;
+            const voidCount = @Model.TicketStatusBreakdown.VoidCount;
+
+            // 1. BIỂU ĐỒ CỘT: DOANH THU THEO TUYẾN
+            const ctxRev = document.getElementById('revenueByRouteChart').getContext('2d');
+            new Chart(ctxRev, {
+                type: 'bar',
+                data: {
+                    labels: routeLabels.length > 0 ? routeLabels : ['Không có dữ liệu'],
+                    datasets: [{
+                        label: 'Doanh thu (VNĐ)',
+                        data: routeRevenues.length > 0 ? routeRevenues : [0],
+                        backgroundColor: '#F26522',
+                        hoverBackgroundColor: '#d9531e',
+                        borderRadius: 8,
+                        maxBarThickness: 45
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ' ' + context.parsed.y.toLocaleString('vi-VN') + ' đ';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(val) {
+                                    if (val >= 1000000) return (val / 1000000) + ' Tr';
+                                    if (val >= 1000) return (val / 1000) + ' k';
+                                    return val;
+                                }
+                            },
+                            grid: { color: '#f1f5f9' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                maxRotation: 20,
+                                font: { size: 11 }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 2. BIỂU ĐỒ BÁN NGUYỆT / DOUGHNUT: TỶ LỆ LẤP ĐẦY GHẾ THEO TUYẾN
+            const ctxOcc = document.getElementById('occupancyByRouteChart').getContext('2d');
+            new Chart(ctxOcc, {
+                type: 'doughnut',
+                data: {
+                    labels: routeLabels.length > 0 ? routeLabels : ['Không có dữ liệu'],
+                    datasets: [{
+                        data: routeOccupancies.length > 0 ? routeOccupancies : [100],
+                        backgroundColor: [
+                            '#10b981',
+                            '#3b82f6',
+                            '#f59e0b',
+                            '#8b5cf6',
+                            '#ec4899',
+                            '#64748b'
+                        ],
+                        borderWidth: 2,
+                        hoverOffset: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { boxWidth: 12, font: { size: 11 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ' ' + context.label + ': ' + context.parsed + '% lấp đầy';
+                                }
+                            }
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+
+            // 3. BIỂU ĐỒ ĐƯỜNG: XU HƯỚNG DOANH THU 7 NGÀY QUA
+            const ctxTrend = document.getElementById('dailyRevenueTrendChart').getContext('2d');
+            new Chart(ctxTrend, {
+                type: 'line',
+                data: {
+                    labels: dailyLabels,
+                    datasets: [{
+                        label: 'Doanh thu (VNĐ)',
+                        data: dailyRevenues,
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        fill: true,
+                        tension: 0.35,
+                        pointBackgroundColor: '#2563eb',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ' Doanh thu: ' + context.parsed.y.toLocaleString('vi-VN') + ' đ';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(val) {
+                                    if (val >= 1000000) return (val / 1000000) + ' Tr';
+                                    if (val >= 1000) return (val / 1000) + ' k';
+                                    return val;
+                                }
+                            },
+                            grid: { color: '#f1f5f9' }
+                        },
+                        x: {
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // 4. BIỂU ĐỒ TRÒN: CƠ CẤU TRẠNG THÁI VÉ
+            const ctxStatus = document.getElementById('ticketStatusBreakdownChart').getContext('2d');
+            new Chart(ctxStatus, {
+                type: 'pie',
+                data: {
+                    labels: ['Đã soát lên xe (Checked-In)', 'Chờ lên xe (Valid)', 'Đã hủy (Void)'],
+                    datasets: [{
+                        data: [checkedInCount, validCount, voidCount],
+                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { boxWidth: 12, font: { size: 11 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const total = checkedInCount + validCount + voidCount;
+                                    const pct = total > 0 ? Math.round(context.parsed / total * 100) : 0;
+                                    return ` ${context.label}: ${context.parsed} vé (${pct}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+}
